@@ -58,6 +58,7 @@ export const serverUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:80
 
 function App() {
   const { userData } = useSelector((state) => state.user);
+  const { initializing } = useSelector((state) => state.user);
   
   // Custom ProtectedRoute component for basic authentication
   const SimpleProtectedRoute = ({ children }) => {
@@ -81,7 +82,10 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route
           path="/signup"
-          element={!userData ? <SignUp /> : <Navigate to="/" />}
+          element={
+            // wait until initializing finishes; during that time show signup so user isn't bounced
+            initializing ? <SignUp /> : (!userData ? <SignUp /> : <Navigate to="/" />)
+          }
         />
         <Route path="/forgotpassword" element={<ForgotPassword />} />
         
