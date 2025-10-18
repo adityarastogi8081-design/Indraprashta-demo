@@ -16,13 +16,20 @@ const ProtectedRoute = ({
   redirectTo = "/login",
   allowedRoles = []
 }) => {
-  const { userData } = useSelector((state) => state.user);
+  const { userData, initializing } = useSelector((state) => state.user);
   const location = useLocation();
 
   // Use provided isLoggedIn or fallback to userData check
   const authenticated = isLoggedIn !== undefined ? isLoggedIn : !!userData;
 
-  // If not authenticated, redirect to login with return URL
+  // While we're initializing (checking session on page load), don't redirect yet.
+  // This prevents a flash of unauthenticated redirect while the app rehydrates the user.
+  if (initializing) {
+    // You can render a loader here if you want a better UX
+    return null;
+  }
+
+  // If not authenticated (and initialization is done), redirect to login with return URL
   if (!authenticated) {
     return (
       <Navigate 
