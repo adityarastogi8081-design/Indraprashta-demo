@@ -4,6 +4,16 @@ import bcrypt from "bcryptjs"
 import User from "../models/userModel.js"
 import sendMail from "../configs/Mail.js"
 
+// Define secure, cross-site cookie options for all functions
+const cookieOptions = {
+    httpOnly: true,
+    secure: true,   // ✅ FIX: Must be true because Vercel frontend is HTTPS
+    sameSite: "None", // ✅ FIX: Must be "None" to allow cross-site cookie sending (Vercel to API)
+    maxAge: 7 * 24 * 60 * 60 * 1000
+};
+
+// ---------------------------------------------------------------------------------------------------------------------
+
 export const signUp = async (req, res) => {
     try {
         let { name, email, password, role, inviteCode } = req.body
@@ -29,14 +39,11 @@ export const signUp = async (req, res) => {
             }
         }
 
-        // For student role, no invite code is needed
-        // For educator role, we've already validated the invite code
+        // Role validation and default
         const validRoles = ["student", "educator"]
         if (role && !validRoles.includes(role)) {
             return res.status(400).json({ message: "Invalid role specified" })
         }
-
-        // Set default role to student if not provided
         if (!role) {
             role = "student"
         }
@@ -48,13 +55,12 @@ export const signUp = async (req, res) => {
             password: hashPassword,
             role,
         })
+        
         let token = await genToken(user._id, user.role)
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "Strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        })
+        
+        // 🚀 UPDATED COOKIE OPTIONS
+        res.cookie("token", token, cookieOptions); 
+        
         return res.status(201).json({
             _id: user._id,
             name: user.name,
@@ -69,6 +75,8 @@ export const signUp = async (req, res) => {
     }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+
 export const login = async (req, res) => {
     try {
         let { email, password } = req.body
@@ -80,13 +88,12 @@ export const login = async (req, res) => {
         if (!isMatch) {
             return res.status(400).json({ message: "incorrect Password" })
         }
+        
         let token = await genToken(user._id, user.role)
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "Strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        })
+        
+        // 🚀 UPDATED COOKIE OPTIONS
+        res.cookie("token", token, cookieOptions);
+        
         return res.status(200).json({
             _id: user._id,
             name: user.name,
@@ -101,14 +108,19 @@ export const login = async (req, res) => {
     }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+
 export const logOut = async (req, res) => {
     try {
-        await res.clearCookie("token")
+        // Clearing cookie uses the default options, which is fine
+        await res.clearCookie("token") 
         return res.status(200).json({ message: "logOut Successfully" })
     } catch (error) {
         return res.status(500).json({ message: `logout Error ${error}` })
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
 
 export const googleSignup = async (req, res) => {
   try {
@@ -120,12 +132,8 @@ export const googleSignup = async (req, res) => {
 
     const token = await genToken(user._id, user.role);
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true, // ✅ must be true on HTTPS
-      sameSite: "None", // ✅ allows cross-origin cookies
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+    // This function already had the correct cookie settings
+    res.cookie("token", token, cookieOptions);
 
     return res.status(200).json({
       _id: user._id,
@@ -140,6 +148,7 @@ export const googleSignup = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------------------------------------------------
 
 export const sendOtp = async (req, res) => {
     try {
@@ -163,14 +172,17 @@ export const sendOtp = async (req, res) => {
     }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+
 export const checkAuth = async (req, res) => {
     try {
         // If the middleware passes, user is authenticated
         const user = await User.findById(req.userId).select("-password");
         if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
+            // If token is valid but user is not found (e.g., deleted), return 404
+            return res.status(404).json({ 
+                success: false, 
+                message: "User not found" 
             });
         }
         return res.status(200).json({
@@ -194,6 +206,8 @@ export const checkAuth = async (req, res) => {
     }
 };
 
+// ---------------------------------------------------------------------------------------------------------------------
+
 export const verifyOtp = async (req, res) => {
     try {
         const { email, otp } = req.body
@@ -211,6 +225,8 @@ export const verifyOtp = async (req, res) => {
         return res.status(500).json({ message: `Varify otp error ${error}` })
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
 
 export const resetPassword = async (req, res) => {
     try {
