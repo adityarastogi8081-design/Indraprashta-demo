@@ -50,22 +50,34 @@ function Login() {
 
     const name = user.displayName;
     const email = user.email;
-    const role = ""; // optional: set default role if needed
 
-    const result = await axios.post(
-      `${serverUrl}/api/auth/googlesignup`,
-      { name, email, role },
-      { withCredentials: true }
-    );
+    try {
+      // Try to login with Google credentials
+      const result = await axios.post(
+        `${serverUrl}/api/auth/googlesignup`,
+        { email },
+        { withCredentials: true }
+      );
 
-    // ✅ Use res.data.user if backend wraps it
-    const userData = result.data?.user || result.data;
-    dispatch(setUserData(userData));
-
-    toast.success("Login Successfully");
-
-    // ✅ Avoid double navigation
-    navigate("/", { replace: true });
+      if (result.data) {
+        // User exists, set user data and redirect
+        dispatch(setUserData(result.data));
+        navigate("/");
+        toast.success("Login Successfully");
+      }
+    } catch (error) {
+      // If user doesn't exist (404) redirect to signup
+      if (error.response?.status === 404) {
+        navigate("/signup", { 
+          state: { 
+            googleData: { name, email }
+          }
+        });
+        toast.info("Please complete signup to continue");
+      } else {
+        throw error; // Re-throw unexpected errors
+      }
+    }
   } catch (error) {
     if (error.code === "auth/popup-closed-by-user") {
       toast.info("Google login was cancelled");
