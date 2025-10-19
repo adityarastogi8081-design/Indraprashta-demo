@@ -124,16 +124,25 @@ export const logOut = async (req, res) => {
 
 export const googleSignup = async (req, res) => {
   try {
-    const { name, email, role } = req.body;
+    const { email } = req.body;
     let user = await User.findOne({ email });
+    
+    // If user doesn't exist, return 404
     if (!user) {
-      user = await User.create({ name, email, role });
+      return res.status(404).json({ 
+        message: "User not found. Please sign up first." 
+      });
     }
 
+    // User exists - generate token and log them in
     const token = await genToken(user._id, user.role);
 
-    // This function already had the correct cookie settings
-    res.cookie("token", token, cookieOptions);
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
     return res.status(200).json({
       _id: user._id,
@@ -143,8 +152,8 @@ export const googleSignup = async (req, res) => {
       photoUrl: user.photoUrl
     });
   } catch (error) {
-    console.error("googleSignup error:", error.message);
-    return res.status(500).json({ message: "Google signup failed" });
+    console.error("Google auth error:", error.message);
+    return res.status(500).json({ message: "Authentication failed" });
   }
 };
 
