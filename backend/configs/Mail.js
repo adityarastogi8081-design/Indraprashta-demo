@@ -16,7 +16,7 @@ const sendMail=async (to,otp) => {
     transporter.sendMail({
         from:process.env.EMAIL,
         to:to,
-        subject:"Reset Your Password",
+        subject:"Inraprashta Academy",
         html:`<p>Your OTP for Password Reset is <b>${otp}</b>.
         It expires in 5 minutes.</p>`
     })
