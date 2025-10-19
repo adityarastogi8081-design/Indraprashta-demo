@@ -157,32 +157,35 @@ export const signUp = async (req, res) => {
 
 export const login = async (req, res) => {
     try {
-        let { email, password } = req.body
-        let user = await User.findOne({ email })
+        let { email, password } = req.body;
+        let user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({ message: "user does not exist" })
+            return res.status(400).json({ message: "user does not exist" });
         }
-        let isMatch = await bcrypt.compare(password, user.password)
+        if (!user.password) {
+            return res.status(400).json({ message: "This account was created with Google. Please use Google login." });
+        }
+        let isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ message: "incorrect Password" })
+            return res.status(400).json({ message: "incorrect Password" });
         }
-        
-        let token = await genToken(user._id, user.role)
-        
-        // 🚀 UPDATED COOKIE OPTIONS
-        res.cookie("token", token, cookieOptions);
-        
+        let token = await genToken(user._id, user.role);
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "Strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
         return res.status(200).json({
             _id: user._id,
             name: user.name,
             email: user.email,
             role: user.role,
             photoUrl: user.photoUrl
-        })
-
+        });
     } catch (error) {
-        console.log("login error")
-        return res.status(500).json({ message: `login Error ${error}` })
+        console.log("login error", error);
+        return res.status(500).json({ message: `login Error ${error}` });
     }
 }
 
