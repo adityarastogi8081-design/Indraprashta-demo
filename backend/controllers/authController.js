@@ -1,3 +1,81 @@
+import SignupOtp from "../models/signupOtpModel.js"
+// Request OTP for signup
+export const requestSignupOtp = async (req, res) => {
+    try {
+        let { name, email, password, role, inviteCode } = req.body;
+        let existUser = await User.findOne({ email });
+        if (existUser) {
+            return res.status(400).json({ message: "Email already exists" });
+        }
+        if (!validator.isEmail(email)) {
+            return res.status(400).json({ message: "Please enter valid Email" });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ message: "Please enter a Strong Password" });
+        }
+        // Check educator invite code
+        if (role === "educator") {
+            const expectedInviteCode = process.env.TEACHER_SECRET_CODE;
+            if (!expectedInviteCode) {
+                return res.status(500).json({ message: "Teacher signup is not properly configured" });
+            }
+            if (inviteCode !== expectedInviteCode) {
+                return res.status(403).json({ message: "Not authorized to signup as teacher" });
+            }
+        }
+        // Remove any previous OTP for this email
+        await SignupOtp.deleteMany({ email });
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpires = Date.now() + 5 * 60 * 1000;
+        // Hash password before storing
+        const hashPassword = await bcrypt.hash(password, 10);
+        await SignupOtp.create({ name, email, password: hashPassword, role, inviteCode, otp, otpExpires });
+        await sendMail(email, otp);
+        return res.status(200).json({ message: "OTP sent to email" });
+    } catch (error) {
+        console.log("requestSignupOtp error", error);
+        return res.status(500).json({ message: `Signup OTP Error: ${error}` });
+    }
+};
+
+// Verify OTP and create user
+export const verifySignupOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        const otpDoc = await SignupOtp.findOne({ email });
+        if (!otpDoc || otpDoc.otp !== otp || otpDoc.otpExpires < Date.now()) {
+            return res.status(400).json({ message: "Invalid or expired OTP" });
+        }
+        // Create user
+        let user = await User.create({
+            name: otpDoc.name,
+            email: otpDoc.email,
+            password: otpDoc.password,
+            role: otpDoc.role,
+            ...(otpDoc.inviteCode ? { inviteCode: otpDoc.inviteCode } : {})
+        });
+        let token = await genToken(user._id, user.role);
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "Strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+        // Remove OTP doc
+        await SignupOtp.deleteOne({ email });
+        return res.status(201).json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            photoUrl: user.photoUrl
+        });
+    } catch (error) {
+        console.log("verifySignupOtp error", error);
+        return res.status(500).json({ message: `Verify Signup OTP Error: ${error}` });
+    }
+};
+
 import { genToken } from "../configs/token.js"
 import validator from "validator"
 import bcrypt from "bcryptjs"
