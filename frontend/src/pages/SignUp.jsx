@@ -10,64 +10,75 @@ import { toast } from 'react-toastify'
 import { useDispatch } from 'react-redux'
 import { setUserData } from '../redux/userSlice'
 import companylogo from "../assets/companylogo.jpg"
-import { auth,provider } from "../utils/Firebase";
+import { auth, provider } from '../utils/Firebase';
+
 
 function SignUp() {
-    const [name, setName] = useState("")
-    const [lastName, setLastName] = useState("")
-    const [email, setEmail] = useState("")
-    const [username, setUsername] = useState("")
-    const [password, setPassword] = useState("")
-    const [confirmPassword, setConfirmPassword] = useState("")
-    const [role, setRole] = useState("student")
-    const [inviteCode, setInviteCode] = useState("")
-    const navigate = useNavigate()
-    const [show, setShow] = useState(false)
-    const [showConfirm, setShowConfirm] = useState(false)
-    const [loading, setLoading] = useState(false)
-    const dispatch = useDispatch()
+    const [name, setName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [email, setEmail] = useState("");
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [role, setRole] = useState("student");
+    const [inviteCode, setInviteCode] = useState("");
+    const [otp, setOtp] = useState("");
+    const [showOtpInput, setShowOtpInput] = useState(false);
+    const navigate = useNavigate();
+    const [show, setShow] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const dispatch = useDispatch();
 
+    // Step 1: Request OTP
     const handleSignUp = async () => {
-        setLoading(true)
+        setLoading(true);
         try {
-            // Validation
             if (password !== confirmPassword) {
-                toast.error("Passwords do not match")
-                setLoading(false)
-                return
+                toast.error("Passwords do not match");
+                setLoading(false);
+                return;
             }
-            
-            // Prepare signup data
             const signupData = {
                 name: name + " " + lastName,
                 email,
                 password,
                 role
-            }
-            
-            // Add invite code if role is educator
+            };
             if (role === "educator") {
                 if (!inviteCode.trim()) {
-                    toast.error("Invite code is required for educator signup")
-                    setLoading(false)
-                    return
+                    toast.error("Invite code is required for educator signup");
+                    setLoading(false);
+                    return;
                 }
-                signupData.inviteCode = inviteCode
+                signupData.inviteCode = inviteCode;
             }
-            
-            const result = await axios.post(serverUrl + "/api/auth/signup", signupData, { withCredentials: true })
-            dispatch(setUserData(result.data))
-
-            navigate("/")
-            toast.success("SignUp Successfully")
-            setLoading(false)
-        } 
-        catch (error) {
-            console.log(error)
-            setLoading(false)
-            toast.error(error.response?.data?.message || "Signup failed")
+            await axios.post(serverUrl + "/api/auth/request-signup-otp", signupData, { withCredentials: true });
+            setShowOtpInput(true);
+            toast.success("OTP sent to your email");
+        } catch (error) {
+            console.log(error);
+            toast.error(error.response?.data?.message || "Failed to send OTP");
+        } finally {
+            setLoading(false);
         }
-    }
+    };
+
+    // Step 2: Verify OTP
+    const handleVerifyOtp = async () => {
+        setLoading(true);
+        try {
+            const result = await axios.post(serverUrl + "/api/auth/verify-signup-otp", { email, otp }, { withCredentials: true });
+            dispatch(setUserData(result.data));
+            navigate("/");
+            toast.success("SignUp Successfully");
+        } catch (error) {
+            console.log(error);
+            toast.error(error.response?.data?.message || "OTP verification failed");
+        } finally {
+            setLoading(false);
+        }
+    };
     
     const googleSignUp = async () => {
         try {
@@ -333,22 +344,53 @@ function SignUp() {
                                     </div>
                                 )}
 
-                                {/* Sign Up Button */}
-                                <button
-                                    type='button'
-                                    className='w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-sm sm:text-base'
-                                    disabled={loading}
-                                    onClick={handleSignUp}
-                                >
-                                    {loading ? (
-                                        <div className='flex items-center justify-center'>
-                                            <ClipLoader size={16} color='white' className='mr-2' />
-                                            <span className='text-sm'>Creating account...</span>
-                                        </div>
-                                    ) : (
-                                        'Create Account'
-                                    )}
-                                </button>
+
+                                {/* Sign Up Button or OTP Input */}
+                                {!showOtpInput ? (
+                                    <button
+                                        type='button'
+                                        className='w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-sm sm:text-base'
+                                        disabled={loading}
+                                        onClick={handleSignUp}
+                                    >
+                                        {loading ? (
+                                            <div className='flex items-center justify-center'>
+                                                <ClipLoader size={16} color='white' className='mr-2' />
+                                                <span className='text-sm'>Sending OTP...</span>
+                                            </div>
+                                        ) : (
+                                            'Create Account'
+                                        )}
+                                    </button>
+                                ) : (
+                                    <div className='space-y-3'>
+                                        <label htmlFor="otp" className='block text-sm font-semibold text-gray-700'>Enter OTP sent to your email</label>
+                                        <input
+                                            id='otp'
+                                            type='text'
+                                            className='w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500'
+                                            placeholder='Enter OTP'
+                                            value={otp}
+                                            onChange={e => setOtp(e.target.value)}
+                                            maxLength={6}
+                                        />
+                                        <button
+                                            type='button'
+                                            className='w-full py-2.5 sm:py-3 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-sm sm:text-base'
+                                            disabled={loading || otp.length !== 6}
+                                            onClick={handleVerifyOtp}
+                                        >
+                                            {loading ? (
+                                                <div className='flex items-center justify-center'>
+                                                    <ClipLoader size={16} color='white' className='mr-2' />
+                                                    <span className='text-sm'>Verifying...</span>
+                                                </div>
+                                            ) : (
+                                                'Verify OTP & Complete Signup'
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
 
                                 {/* Divider */}
                                 <div className='flex items-center py-2'>
